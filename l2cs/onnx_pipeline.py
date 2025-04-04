@@ -4,8 +4,8 @@ import cv2
 import torch
 from .utils import prep_input_numpy
 from .results import GazeResultContainer
-from face_detection import RetinaFace
-
+# from face_detection import RetinaFace
+from .detector import BlazeFaceDetector
 
 class ONNXPipeline:
     def __init__(self, onnx_path, device='cpu', include_detector=True, confidence_threshold=0.5):
@@ -15,7 +15,8 @@ class ONNXPipeline:
         self.device = device
 
         if include_detector:
-            self.detector = RetinaFace()
+            # self.detector = RetinaFace()
+            self.detector = BlazeFaceDetector(min_confidence=confidence_threshold)
             self.idx_tensor = np.arange(90)
         self.softmax = lambda x: np.exp(x) / np.sum(np.exp(x), axis=1, keepdims=True)
 

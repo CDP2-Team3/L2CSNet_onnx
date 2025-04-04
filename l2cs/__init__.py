@@ -4,6 +4,7 @@ from .model import L2CS
 from .pipeline import Pipeline
 from .datasets import Gaze360, Mpiigaze
 from .onnx_pipeline import ONNXPipeline  # ✅ 추가
+from .detector import BlazeFaceDetector
 
 __all__ = [
     # Classes
@@ -12,6 +13,7 @@ __all__ = [
     'ONNXPipeline',  # ✅ 여기도 추가
     'Gaze360',
     'Mpiigaze',
+    'BlazeFaceDetector',
     # Utils
     'render',
     'select_device',
