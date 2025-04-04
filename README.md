@@ -1,6 +1,6 @@
 # L2CS-Net Gaze Estimation (Webcam ONNX Version)
 
-L2CS-Net: 기반의 시선 추정 모델을 실시간 웹캠 영상에 적용할 수 있도록 확장한 버전(얼굴인식: retinaface, 추후 mediapipe로 변경예정)
+L2CS-Net: 기반의 시선 추정 모델을 실시간 웹캠 영상에 적용할 수 있도록 확장한 버전(얼굴인식: mediapipe)
 
 PyTorch `.pkl` 모델을 **ONNX 형식으로 변환**, `onnxruntime`을 활용
 
@@ -10,8 +10,9 @@ PyTorch `.pkl` 모델을 **ONNX 형식으로 변환**, `onnxruntime`을 활용
 | 변경 내용 | 설명 |
 |----------|------|
 | ✅ `onnx_pipeline.py` | 기존 PyTorch 기반 `Pipeline`을 ONNX 기반 추론이 가능하도록 수정한 `ONNXPipeline` 클래스 추가 |
+| ✅ `detector.py` | mediapipe로 얼굴인식을 구현하여, 기존의 retinaface 대체할 수 있도록 `BlazeFaceDetector` 클래스 추가 |
 | ✅ `webcamtest_onnx.py` | ONNX 모델을 이용해 실시간 웹캠 시선 추정을 실행할 수 있는 스크립트 추가 |
-| ✅ `__init__.py` 수정 | `ONNXPipeline` 클래스를 외부에서 import 가능하도록 export 처리 |
+| ✅ `__init__.py` 수정 | `ONNXPipeline` 클래스, `BlazefaceDetector` 클래스를 외부에서 import 가능하도록 export 처리 |
 | ✅ `pkl2onnx.py` | PyTorch `.pkl` 모델을 ONNX 형식으로 변환하는 스크립트  *(선택 사항)* |
 
 ---
