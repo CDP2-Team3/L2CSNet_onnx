@@ -16,9 +16,9 @@ gaze_pipeline = ONNXPipeline(
 )
 
 # Calibration module
-calibrator = Calibrator()
+calibrator = Calibrator(smoothing_window=5)
 
-print("Press 'c' to start calibration (9 points). Press 'v' to record each point. Press 'q' to quit.")
+print("Press 'c' to start calibration (9 points). Press 'v' to record points. Press 'q' to quit.")
 
 #---------------------------------------------------
 # Video Capture
@@ -28,11 +28,21 @@ if not cap.isOpened():
     print("[Error] Cannot open webcam.")
     exit(1)
 
-# Create adjustable window of size 800x800
+# Create adjustable window and set up mouse callback
 window_name = 'ONNX Gaze Calibration'
 cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 cv2.resizeWindow(window_name, 800, 800)
+# Mouse position tracking
+global mouse_pos
+mouse_pos = {'x': 0, 'y': 0}
 
+def mouse_callback(event, x, y, flags, param):
+    if event == cv2.EVENT_MOUSEMOVE:
+        mouse_pos['x'], mouse_pos['y'] = x, y
+
+cv2.setMouseCallback(window_name, mouse_callback)
+
+# FPS variables
 prev_time = time.time()
 frame_count = 0
 fps = 0.0
@@ -64,6 +74,9 @@ while True:
             sx, sy = calibrator.predict(pitch, yaw)
             cv2.circle(output_frame, (sx, sy), 8, (0, 0, 255), -1)
 
+    # Draw green dot at mouse position
+    cv2.circle(output_frame, (mouse_pos['x'], mouse_pos['y']), 5, (0, 255, 0), -1)
+
     # FPS computation
     frame_count += 1
     curr_time = time.time()
@@ -76,14 +89,10 @@ while True:
     cv2.putText(
         output_frame,
         f"FPS: {fps:.2f}",
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        (0, 255, 0),
-        2
+        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2
     )
 
-    # Show output in adjustable window
+    # Show output
     cv2.imshow(window_name, output_frame)
     key = cv2.waitKey(1) & 0xFF
 
@@ -98,7 +107,6 @@ while True:
 
     # Record calibration point
     if key == ord('v') and calibrator.is_active():
-        # perform gaze estimation to get current pitch/yaw
         gaze = gaze_pipeline.step(frame)
         pitch = float(gaze.pitch[0])
         yaw   = float(gaze.yaw[0])
