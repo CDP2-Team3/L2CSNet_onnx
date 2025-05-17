@@ -10,35 +10,35 @@ from calibration import Calibrator
 # ONNX Gaze Pipeline and Calibration Setup
 #---------------------------------------------------
 # Load ONNX-based gaze estimation pipeline
-gaze_pipeline = ONNXPipeline(
+m = ONNXPipeline(
     onnx_path="./models/L2CSNet_gaze360.onnx",
     device='cpu'
 )
+# Rename for clarity
+gaze_pipeline = m
 
-# Calibration module
-calibrator = Calibrator(smoothing_window=5)
+# Calibration module: polynomial regression, smoothing
+global_mouse = {'x': 0, 'y': 0}
+calibrator = Calibrator(smoothing_window=5, poly_degree=2)
 
 print("Press 'c' to start calibration (9 points). Press 'v' to record points. Press 'q' to quit.")
 
 #---------------------------------------------------
-# Video Capture
+# Video Capture & Window Setup
 #---------------------------------------------------
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("[Error] Cannot open webcam.")
     exit(1)
 
-# Create adjustable window and set up mouse callback
 window_name = 'ONNX Gaze Calibration'
 cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 cv2.resizeWindow(window_name, 800, 800)
-# Mouse position tracking
-global mouse_pos
-mouse_pos = {'x': 0, 'y': 0}
 
+# Mouse callback to track position
 def mouse_callback(event, x, y, flags, param):
     if event == cv2.EVENT_MOUSEMOVE:
-        mouse_pos['x'], mouse_pos['y'] = x, y
+        global_mouse['x'], global_mouse['y'] = x, y
 
 cv2.setMouseCallback(window_name, mouse_callback)
 
@@ -56,26 +56,39 @@ while True:
         print("[Error] Frame read failed.")
         break
 
-    # Mirror for natural interaction
     frame = cv2.flip(frame, 1)
+    output_frame = frame.copy()
 
     # Calibration display or gaze rendering
     if calibrator.is_active():
-        output_frame = calibrator.display_point(frame)
+        output_frame = calibrator.display_point(output_frame)
     else:
-        # Gaze estimation
         results = gaze_pipeline.step(frame)
-        output_frame = render(frame, results)
+        output_frame = render(output_frame, results)
 
-        # If calibrated, map gaze to screen coordinates
+        # Gaze prediction and drawing
         if calibrator.is_calibrated():
-            pitch = float(results.pitch[0])
-            yaw   = float(results.yaw[0])
-            sx, sy = calibrator.predict(pitch, yaw)
+            p = float(results.pitch[0])
+            yv = float(results.yaw[0])
+            sx, sy = calibrator.predict(p, yv)
             cv2.circle(output_frame, (sx, sy), 8, (0, 0, 255), -1)
+            # Display gaze coordinates
+            cv2.putText(
+                output_frame,
+                f"Gaze: ({sx}, {sy})",
+                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2
+            )
+        else:
+            sx, sy = None, None
 
-    # Draw green dot at mouse position
-    cv2.circle(output_frame, (mouse_pos['x'], mouse_pos['y']), 5, (0, 255, 0), -1)
+    # Draw mouse position and display its coordinates
+    mx, my = global_mouse['x'], global_mouse['y']
+    cv2.circle(output_frame, (mx, my), 5, (0, 255, 0), -1)
+    cv2.putText(
+        output_frame,
+        f"Mouse: ({mx}, {my})",
+        (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2
+    )
 
     # FPS computation
     frame_count += 1
@@ -92,25 +105,19 @@ while True:
         (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2
     )
 
-    # Show output
+    # Show frame
     cv2.imshow(window_name, output_frame)
     key = cv2.waitKey(1) & 0xFF
-
-    # Quit
     if key == ord('q'):
         break
-
-    # Start calibration
     if key == ord('c') and not calibrator.is_active():
         calibrator.start()
         print('[Calibration] Started. Look at each target and press V.')
-
-    # Record calibration point
     if key == ord('v') and calibrator.is_active():
         gaze = gaze_pipeline.step(frame)
         pitch = float(gaze.pitch[0])
-        yaw   = float(gaze.yaw[0])
-        calibrator.record(pitch, yaw, frame)
+        yaw_val = float(gaze.yaw[0])
+        calibrator.record(pitch, yaw_val, frame)
         print(f'[Calibration] Recorded {calibrator.current_index}/9 points.')
         if not calibrator.is_active():
             print('[Calibration] Completed. Calibration model trained.')
