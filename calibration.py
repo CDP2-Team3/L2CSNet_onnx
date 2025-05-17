@@ -2,21 +2,23 @@ import numpy as np
 import cv2
 from collections import deque
 from sklearn.linear_model import Ridge
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.pipeline import make_pipeline
 
 class Calibrator:
     """
-    Encapsulates the 9-point gaze-to-screen calibration process with optional temporal smoothing.
+    Encapsulates the 9-point gaze-to-screen calibration process with optional temporal smoothing
+    and supports polynomial regression mapping.
     Usage:
-        calib = Calibrator(smoothing_window=5)
+        calib = Calibrator(smoothing_window=5, poly_degree=2)
         calib.start()
         # In main loop, while calib.is_active(): frame = calib.display_point(frame)
         # On key 'v': calib.record(pitch, yaw, frame)
         # After calibration: if calib.is_calibrated(): (x, y) = calib.predict(pitch, yaw)
     """
-    def __init__(self, smoothing_window=5):
+    def __init__(self, smoothing_window=25, poly_degree=2):
         self.smoothing_window = smoothing_window
+        self.poly_degree = poly_degree
         self.pred_buffer = deque(maxlen=smoothing_window)
         self.reset()
 
@@ -52,9 +54,7 @@ class Calibrator:
         ]
         if self.current_index < len(points):
             pt = points[self.current_index]
-            # Draw large green target
             cv2.circle(frame, pt, 15, (0, 255, 0), -1)
-            # Draw small red dot at center for precision
             cv2.circle(frame, pt, 5, (0, 0, 255), -1)
             cv2.putText(
                 frame,
@@ -66,7 +66,7 @@ class Calibrator:
     def record(self, pitch, yaw, frame):
         """
         Record a gaze sample (pitch, yaw) for the current target.
-        After 9 samples, train a Ridge regression model.
+        After 9 samples, train a polynomial Ridge regression model.
         """
         if not self.active:
             return
@@ -85,8 +85,9 @@ class Calibrator:
             self.active = False
             gaze_arr = np.array(self.gaze_log)
             screen_arr = np.array(self.screen_points, dtype=np.float32)
-            # Pipeline: standardize inputs then Ridge regression
+            # Pipeline: polynomial features, standardize, then Ridge regression
             self.model = make_pipeline(
+                PolynomialFeatures(degree=self.poly_degree, include_bias=False),
                 StandardScaler(),
                 Ridge(alpha=1.0)
             )
@@ -106,7 +107,6 @@ class Calibrator:
             raise RuntimeError("Calibrator: model not trained yet")
         raw = self.model.predict(np.array([[pitch, yaw]]))[0]
         x, y = raw[0], raw[1]
-        # Append and smooth
         self.pred_buffer.append((x, y))
         xs = [p[0] for p in self.pred_buffer]
         ys = [p[1] for p in self.pred_buffer]
